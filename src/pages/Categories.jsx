@@ -1,115 +1,80 @@
 import { useEffect, useState } from "react";
-import api from "../api.js";
+import api from "../api";
 
 export default function Categories() {
-  const [vendors, setVendors] = useState([]);
-  const [vendorId, setVendorId] = useState("");
   const [categories, setCategories] = useState([]);
   const [name, setName] = useState("");
 
-  // load vendors
+  const loadCategories = async () => {
+    const { data } = await api.get("/categories");
+    setCategories(data);
+  };
+
   useEffect(() => {
-    api.get("/vendors")
-      .then(res => setVendors(res.data))
-      .catch(() => alert("Failed to load vendors"));
+    loadCategories();
   }, []);
 
-  // load categories when vendor changes
-  useEffect(() => {
-    if (!vendorId) return;
-
-    api.get(`/categories/vendor/${vendorId}`)
-      .then(res => setCategories(res.data))
-      .catch(() => setCategories([]));
-  }, [vendorId]);
-
   const addCategory = async () => {
-    if (!name || !vendorId) {
-      alert("Select vendor & enter name");
-      return;
-    }
+    if (!name) return;
+    await api.post("/categories", { name });
+    setName("");
+    loadCategories();
+  };
 
-    try {
-      await api.post("/categories", {
-        name,
-        vendor: vendorId
-      });
-
-      setName("");
-      const res = await api.get(`/categories/vendor/${vendorId}`);
-      setCategories(res.data);
-    } catch {
-      alert("Failed to add category");
-    }
+  const updateCategory = async (id) => {
+    await api.put(`/categories/${id}`, {
+      name: "Updated Category"
+    });
+    loadCategories();
   };
 
   const deleteCategory = async (id) => {
-    if (!confirm("Delete category?")) return;
-
-    try {
-      await api.delete(`/categories/${id}`);
-      setCategories(categories.filter(c => c._id !== id));
-    } catch {
-      alert("Delete failed");
-    }
+    await api.delete(`/categories/${id}`);
+    loadCategories();
   };
 
   return (
     <div>
-      <h2>Categories</h2>
+      <h1 className="text-xl font-bold mb-4">Categories</h1>
 
-      {/* Select Vendor */}
-      <select
-        value={vendorId}
-        onChange={(e) => setVendorId(e.target.value)}
-      >
-        <option value="">-- Select Vendor --</option>
-        {vendors.map(v => (
-          <option key={v._id} value={v._id}>
-            {v.name}
-          </option>
-        ))}
-      </select>
+      <div className="flex gap-2 mb-4">
+        <input
+          className="border p-2"
+          placeholder="Category name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <button
+          onClick={addCategory}
+          className="bg-blue-600 text-white px-4"
+        >
+          Add
+        </button>
+      </div>
 
-      <br /><br />
+      {categories.map((c) => (
+        <div
+          key={c._id}
+          className="bg-white p-3 mb-2 flex justify-between"
+        >
+          <span>{c.name}</span>
 
-      {/* Add Category */}
-      {vendorId && (
-        <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-          <input
-            placeholder="Category name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button onClick={addCategory} style={{ marginLeft: 10 }}>
-            Add Category
-          </button>
+          <div className="space-x-3">
+            <button
+              onClick={() => updateCategory(c._id)}
+              className="text-blue-600"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => deleteCategory(c._id)}
+              className="text-red-600"
+            >
+              Delete
+            </button>
+          </div>
         </div>
-      )}
-
-      {/* Category List */}
-      {vendorId && (
-        <table border="1" cellPadding="10" width="100%">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map(c => (
-              <tr key={c._id}>
-                <td>{c.name}</td>
-                <td>
-                  <button onClick={() => deleteCategory(c._id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      ))}
     </div>
   );
 }
