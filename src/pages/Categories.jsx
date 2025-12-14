@@ -1,87 +1,122 @@
 
-import { useEffect, useState } from 'react';
-import api from '../api.js';
+import { useEffect, useState } from "react";
+import api from "../api.js";
 
-export default function Categories({ vendorId }) {
+export default function Categories() {
+  const [vendors, setVendors] = useState([]);
+  const [vendorId, setVendorId] = useState("");
   const [categories, setCategories] = useState([]);
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
 
+  // Load vendors
+  useEffect(() => {
+    api.get("/vendors")
+      .then(res => setVendors(res.data))
+      .catch(() => alert("Failed to load vendors"));
+  }, []);
+
+  // Load categories when vendor changes
   useEffect(() => {
     if (!vendorId) return;
+
     api.get(`/categories/vendor/${vendorId}`)
       .then(res => setCategories(res.data))
-      .catch(err => console.error(err));
+      .catch(() => setCategories([]));
   }, [vendorId]);
 
+  // Add new category
   const addCategory = async () => {
-    if (!name) return;
+    if (!name || !vendorId) {
+      alert("Select vendor & enter name");
+      return;
+    }
     try {
-      const res = await api.post(`/categories`, { name, vendor: vendorId });
-      setCategories([...categories, res.data]);
-      setName('');
-    } catch (err) {
-      console.error(err);
+      await api.post("/categories", { name, vendor: vendorId });
+      setName("");
+      const res = await api.get(`/categories/vendor/${vendorId}`);
+      setCategories(res.data);
+    } catch {
+      alert("Failed to add category");
     }
   };
 
-  const updateCategory = async (id) => {
-    const newName = prompt('Enter new category name:');
+  // Update category
+  const updateCategory = async (category) => {
+    const newName = prompt("Enter new category name", category.name);
     if (!newName) return;
+
     try {
-      await api.put(`/categories/${id}`, { name: newName });
-      setCategories(categories.map(c => c._id === id ? { ...c, name: newName } : c));
-    } catch (err) {
-      console.error(err);
+      const res = await api.put(`/categories/${category._id}`, { name: newName });
+      setCategories(categories.map(c => c._id === res.data._id ? res.data : c));
+    } catch {
+      alert("Update failed");
     }
   };
 
+  // Delete category
   const deleteCategory = async (id) => {
-    if (!confirm('Are you sure?')) return;
+    if (!confirm("Delete category?")) return;
+
     try {
       await api.delete(`/categories/${id}`);
       setCategories(categories.filter(c => c._id !== id));
-    } catch (err) {
-      console.error(err);
+    } catch {
+      alert("Delete failed");
     }
   };
 
   return (
-    <div className="p-4 min-h-screen bg-gray-100">
-      <h1 className="text-xl font-bold mb-4">Categories</h1>
+    <div>
+      <h2>Categories</h2>
 
-      <div className="mb-4 flex gap-2">
-        <input
-          className="border p-2 flex-1"
-          placeholder="Category name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button
-          onClick={addCategory}
-          className="bg-blue-600 text-white px-4 rounded"
+      {/* Select Vendor */}
+      <select
+        value={vendorId}
+        onChange={(e) => setVendorId(e.target.value)}
+      >
+        <option value="">-- Select Vendor --</option>
+        {vendors.map(v => (
+          <option key={v._id} value={v._id}>{v.name}</option>
+        ))}
+      </select>
+
+      <br /><br />
+
+      {/* Add Category */}
+      {vendorId && (
+        <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
+          <input
+            placeholder="Category name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button onClick={addCategory} style={{ marginLeft: 10 }}>Add Category</button>
+        </div>
+      )}
+
+      {/* Category List */}
+      {categories.map(c => (
+        <div
+          key={c._id}
+          style={{
+            border: "1px solid #ccc",
+            padding: 15,
+            marginBottom: 10,
+            borderRadius: 6,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}
         >
-          Add
-        </button>
-      </div>
-
-      <div className="overflow-y-auto max-h-[70vh]">
-        {categories.length === 0 ? (
-          <p className="text-gray-500">No categories found for this vendor.</p>
-        ) : (
-          categories.map(c => (
-            <div
-              key={c._id}
-              className="bg-white p-3 mb-2 flex justify-between items-center shadow rounded"
-            >
-              <span>{c.name}</span>
-              <div className="space-x-3">
-                <button onClick={() => updateCategory(c._id)} className="text-blue-600">Edit</button>
-                <button onClick={() => deleteCategory(c._id)} className="text-red-600">Delete</button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+          <span>{c.name}</span>
+          <div>
+            <button onClick={() => updateCategory(c)} style={{ marginRight: 10 }}>
+              Edit
+            </button>
+            <button onClick={() => deleteCategory(c._id)}>Delete</button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
