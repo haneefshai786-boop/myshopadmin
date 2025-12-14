@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import api from "../api.js";
 
@@ -15,178 +14,97 @@ export default function Products() {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [image, setImage] = useState(null);
-  const [editingId, setEditingId] = useState(null);
 
   // Load vendors
   useEffect(() => {
-    api.get("/vendors").then(res => setVendors(res.data)).catch(() => alert("Failed to load vendors"));
+    api.get("/vendors").then(res => setVendors(res.data));
   }, []);
 
   // Load categories when vendor changes
   useEffect(() => {
-    if (!vendorId) {
-      setCategories([]);
-      setCategoryId("");
-      setSubcategories([]);
-      setSubcategoryId("");
-      return;
-    }
-    api.get(`/categories/vendor/${vendorId}`)
-      .then(res => setCategories(res.data))
-      .catch(() => setCategories([]));
+    if (!vendorId) return setCategories([]);
+    api.get(`/categories/vendor/${vendorId}`).then(res => setCategories(res.data));
   }, [vendorId]);
 
   // Load subcategories when category changes
   useEffect(() => {
-    if (!categoryId) {
-      setSubcategories([]);
-      setSubcategoryId("");
-      return;
-    }
-    api.get(`/subcategories/category/${categoryId}`)
-      .then(res => setSubcategories(res.data))
-      .catch(() => setSubcategories([]));
+    if (!categoryId) return setSubcategories([]);
+    api.get(`/subcategories/category/${categoryId}`).then(res => setSubcategories(res.data));
   }, [categoryId]);
 
-  // Load products
-  useEffect(() => {
-    api.get("/products")
-      .then(res => setProducts(res.data))
-      .catch(() => setProducts([]));
-  }, []);
+  // Load all products
+  const loadProducts = () => {
+    api.get("/products").then(res => setProducts(res.data));
+  };
+  useEffect(loadProducts, []);
 
-  const saveProduct = async () => {
-    if (!vendorId || !categoryId || !subcategoryId || !name || !price) {
-      alert("Please fill all fields");
+  const addProduct = async () => {
+    if (!name || !price || !vendorId || !categoryId || !subcategoryId) {
+      alert("All fields are required");
       return;
     }
 
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("price", price);
+    formData.append("vendor", vendorId);
+    formData.append("category", categoryId);
+    formData.append("subcategory", subcategoryId);
+    if (image) formData.append("image", image);
+
     try {
-      const formData = new FormData();
-      formData.append("name", name);
-      formData.append("price", price);
-      formData.append("vendor", vendorId);
-      formData.append("category", categoryId);
-      formData.append("subcategory", subcategoryId);
-      if (image) formData.append("image", image);
-
-      if (editingId) {
-        await api.put(`/products/${editingId}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" }
-        });
-        setEditingId(null);
-      } else {
-        await api.post("/products", formData, {
-          headers: { "Content-Type": "multipart/form-data" }
-        });
-      }
-
-      // Reset form
-      setName("");
-      setPrice("");
-      setImage(null);
-
-      // Reload products
-      const res = await api.get("/products");
-      setProducts(res.data);
-
-    } catch (err) {
-      console.error(err);
+      await api.post("/products", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setName(""); setPrice(""); setImage(null);
+      loadProducts();
+    } catch {
       alert("Failed to save product");
     }
   };
 
-  const editProduct = (p) => {
-    setName(p.name);
-    setPrice(p.price);
-    setVendorId(p.vendor?._id || "");
-    setCategoryId(p.category?._id || "");
-    setSubcategoryId(p.subcategory?._id || "");
-    setEditingId(p._id);
-  };
-
   const deleteProduct = async (id) => {
     if (!confirm("Delete product?")) return;
-    try {
-      await api.delete(`/products/${id}`);
-      setProducts(products.filter(p => p._id !== id));
-    } catch {
-      alert("Delete failed");
-    }
+    await api.delete(`/products/${id}`);
+    setProducts(products.filter(p => p._id !== id));
   };
 
   return (
     <div>
       <h2>Products</h2>
 
-      {/* Vendor select */}
+      {/* Vendor / Category / Subcategory */}
       <select value={vendorId} onChange={e => setVendorId(e.target.value)}>
         <option value="">-- Select Vendor --</option>
-        {vendors.map(v => (
-          <option key={v._id} value={v._id}>{v.name}</option>
-        ))}
+        {vendors.map(v => <option key={v._id} value={v._id}>{v.name}</option>)}
       </select>
 
-      {/* Category select */}
-      <select
-        value={categoryId}
-        onChange={e => setCategoryId(e.target.value)}
-        disabled={!vendorId}
-        style={{ marginLeft: 10 }}
-      >
+      <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>
         <option value="">-- Select Category --</option>
-        {categories.map(c => (
-          <option key={c._id} value={c._id}>{c.name}</option>
-        ))}
+        {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
       </select>
 
-      {/* Subcategory select */}
-      <select
-        value={subcategoryId}
-        onChange={e => setSubcategoryId(e.target.value)}
-        disabled={!categoryId}
-        style={{ marginLeft: 10 }}
-      >
+      <select value={subcategoryId} onChange={e => setSubcategoryId(e.target.value)}>
         <option value="">-- Select Subcategory --</option>
-        {subcategories.map(s => (
-          <option key={s._id} value={s._id}>{s.name}</option>
-        ))}
+        {subcategories.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
       </select>
 
       <br /><br />
+      <input placeholder="Product name" value={name} onChange={e => setName(e.target.value)} />
+      <input placeholder="Price" type="number" value={price} onChange={e => setPrice(e.target.value)} />
+      <input type="file" onChange={e => setImage(e.target.files[0])} />
+      <button onClick={addProduct}>Add Product</button>
 
-      {/* Add/Edit Product */}
-      {(vendorId && categoryId && subcategoryId) && (
-        <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-          <input placeholder="Product name" value={name} onChange={e => setName(e.target.value)} />
-          <input placeholder="Price" type="number" value={price} onChange={e => setPrice(e.target.value)} style={{ marginLeft: 10 }} />
-          <input type="file" onChange={e => setImage(e.target.files[0])} style={{ marginLeft: 10 }} />
-          <button onClick={saveProduct} style={{ marginLeft: 10 }}>
-            {editingId ? "Update" : "Add"} Product
-          </button>
-          {editingId && (
-            <button onClick={() => { setEditingId(null); setName(""); setPrice(""); setImage(null); }} style={{ marginLeft: 10 }}>
-              Cancel
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Product list */}
-      <div style={{ display: "grid", gap: 10 }}>
+      <hr />
+      <h3>Product List</h3>
+      <ul>
         {products.map(p => (
-          <div key={p._id} style={{ border: "1px solid #ccc", padding: 10 }}>
-            <h4>{p.name}</h4>
-            <p>Price: ${p.price}</p>
-            <p>Vendor: {p.vendor?.name || "-"}</p>
-            <p>Category: {p.category?.name || "-"}</p>
-            <p>Subcategory: {p.subcategory?.name || "-"}</p>
-            {p.image && <img src={p.image} alt={p.name} style={{ width: 100, marginTop: 5 }} />}
-            <button onClick={() => editProduct(p)}>Edit</button>
-            <button onClick={() => deleteProduct(p._id)} style={{ marginLeft: 10 }}>Delete</button>
-          </div>
+          <li key={p._id}>
+            {p.name} - ${p.price} - {p.vendor?.name} / {p.category?.name} / {p.subcategory?.name}
+            <button onClick={() => deleteProduct(p._id)}>Delete</button>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
