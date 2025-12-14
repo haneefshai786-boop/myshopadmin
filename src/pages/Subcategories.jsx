@@ -1,141 +1,81 @@
+
 import { useEffect, useState } from "react";
-import api from "../api.js";
+import api from "../api";
 
 export default function Subcategories() {
-  const [vendors, setVendors] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
-
-  const [vendorId, setVendorId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");
 
-  // load vendors
+  const loadSubcategories = async () => {
+    const { data } = await api.get("/subcategories");
+    setSubcategories(data);
+  };
+
   useEffect(() => {
-    api.get("/vendors")
-      .then(res => setVendors(res.data))
-      .catch(() => alert("Failed to load vendors"));
+    loadSubcategories();
   }, []);
 
-  // load categories when vendor changes
-  useEffect(() => {
-    if (!vendorId) {
-      setCategories([]);
-      setCategoryId("");
-      return;
-    }
-
-    api.get(`/categories/vendor/${vendorId}`)
-      .then(res => setCategories(res.data))
-      .catch(() => setCategories([]));
-  }, [vendorId]);
-
-  // load subcategories when category changes
-  useEffect(() => {
-    if (!categoryId) {
-      setSubcategories([]);
-      return;
-    }
-
-    api.get(`/subcategories/category/${categoryId}`)
-      .then(res => setSubcategories(res.data))
-      .catch(() => setSubcategories([]));
-  }, [categoryId]);
-
   const addSubcategory = async () => {
-    if (!name || !categoryId) {
-      alert("Enter name & select category");
-      return;
-    }
+    if (!name) return;
+    await api.post("/subcategories", { name });
+    setName("");
+    loadSubcategories();
+  };
 
-    try {
-      await api.post("/subcategories", {
-        name,
-        category: categoryId
-      });
-
-      setName("");
-      const res = await api.get(`/subcategories/category/${categoryId}`);
-      setSubcategories(res.data);
-    } catch {
-      alert("Failed to add subcategory");
-    }
+  const updateSubcategory = async (id) => {
+    await api.put(`/subcategories/${id}`, {
+      name: "Updated Subcategory"
+    });
+    loadSubcategories();
   };
 
   const deleteSubcategory = async (id) => {
-    if (!confirm("Delete subcategory?")) return;
-
-    try {
-      await api.delete(`/subcategories/${id}`);
-      setSubcategories(subcategories.filter(s => s._id !== id));
-    } catch {
-      alert("Delete failed");
-    }
+    await api.delete(`/subcategories/${id}`);
+    loadSubcategories();
   };
 
   return (
     <div>
-      <h2>Subcategories</h2>
+      <h1 className="text-xl font-bold mb-4">Subcategories</h1>
 
-      {/* Vendor select */}
-      <select value={vendorId} onChange={e => setVendorId(e.target.value)}>
-        <option value="">-- Select Vendor --</option>
-        {vendors.map(v => (
-          <option key={v._id} value={v._id}>{v.name}</option>
-        ))}
-      </select>
+      <div className="flex gap-2 mb-4">
+        <input
+          className="border p-2"
+          placeholder="Subcategory name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <button
+          onClick={addSubcategory}
+          className="bg-blue-600 text-white px-4"
+        >
+          Add
+        </button>
+      </div>
 
-      <br /><br />
+      {subcategories.map((s) => (
+        <div
+          key={s._id}
+          className="bg-white p-3 mb-2 flex justify-between"
+        >
+          <span>{s.name}</span>
 
-      {/* Category select */}
-      {categories.length > 0 && (
-        <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>
-          <option value="">-- Select Category --</option>
-          {categories.map(c => (
-            <option key={c._id} value={c._id}>{c.name}</option>
-          ))}
-        </select>
-      )}
-
-      <br /><br />
-
-      {/* Add subcategory */}
-      {categoryId && (
-        <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-          <input
-            placeholder="Subcategory name"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
-          <button onClick={addSubcategory} style={{ marginLeft: 10 }}>
-            Add Subcategory
-          </button>
+          <div className="space-x-3">
+            <button
+              onClick={() => updateSubcategory(s._id)}
+              className="text-blue-600"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => deleteSubcategory(s._id)}
+              className="text-red-600"
+            >
+              Delete
+            </button>
+          </div>
         </div>
-      )}
-
-      {/* List */}
-      {subcategories.length > 0 && (
-        <table border="1" cellPadding="10" width="100%">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {subcategories.map(s => (
-              <tr key={s._id}>
-                <td>{s.name}</td>
-                <td>
-                  <button onClick={() => deleteSubcategory(s._id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      ))}
     </div>
   );
 }
