@@ -11,15 +11,15 @@ export default function Products() {
   const [vendorId, setVendorId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
+
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [image, setImage] = useState(null);
   const [editingId, setEditingId] = useState(null);
 
   // Load vendors
   useEffect(() => {
-    api.get("/vendors")
-      .then(res => setVendors(res.data))
-      .catch(() => alert("Failed to load vendors"));
+    api.get("/vendors").then(res => setVendors(res.data)).catch(() => alert("Failed to load vendors"));
   }, []);
 
   // Load categories when vendor changes
@@ -27,9 +27,10 @@ export default function Products() {
     if (!vendorId) {
       setCategories([]);
       setCategoryId("");
+      setSubcategories([]);
+      setSubcategoryId("");
       return;
     }
-
     api.get(`/categories/vendor/${vendorId}`)
       .then(res => setCategories(res.data))
       .catch(() => setCategories([]));
@@ -42,47 +43,55 @@ export default function Products() {
       setSubcategoryId("");
       return;
     }
-
     api.get(`/subcategories/category/${categoryId}`)
       .then(res => setSubcategories(res.data))
       .catch(() => setSubcategories([]));
   }, [categoryId]);
 
-  // Load products when subcategory changes
+  // Load products
   useEffect(() => {
-    if (!subcategoryId) {
-      setProducts([]);
-      return;
-    }
-
-    api.get(`/products/subcategory/${subcategoryId}`)
+    api.get("/products")
       .then(res => setProducts(res.data))
       .catch(() => setProducts([]));
-  }, [subcategoryId]);
+  }, []);
 
   const saveProduct = async () => {
-    if (!name || !price || !subcategoryId) {
-      alert("Fill all fields and select subcategory");
+    if (!vendorId || !categoryId || !subcategoryId || !name || !price) {
+      alert("Please fill all fields");
       return;
     }
 
     try {
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("price", price);
+      formData.append("vendor", vendorId);
+      formData.append("category", categoryId);
+      formData.append("subcategory", subcategoryId);
+      if (image) formData.append("image", image);
+
       if (editingId) {
-        await api.put(`/products/${editingId}`, {
-          name, price, subcategory: subcategoryId
+        await api.put(`/products/${editingId}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" }
         });
         setEditingId(null);
       } else {
-        await api.post("/products", {
-          name, price, subcategory: subcategoryId
+        await api.post("/products", formData, {
+          headers: { "Content-Type": "multipart/form-data" }
         });
       }
 
+      // Reset form
       setName("");
       setPrice("");
-      const res = await api.get(`/products/subcategory/${subcategoryId}`);
+      setImage(null);
+
+      // Reload products
+      const res = await api.get("/products");
       setProducts(res.data);
-    } catch {
+
+    } catch (err) {
+      console.error(err);
       alert("Failed to save product");
     }
   };
@@ -90,12 +99,14 @@ export default function Products() {
   const editProduct = (p) => {
     setName(p.name);
     setPrice(p.price);
+    setVendorId(p.vendor?._id || "");
+    setCategoryId(p.category?._id || "");
+    setSubcategoryId(p.subcategory?._id || "");
     setEditingId(p._id);
   };
 
   const deleteProduct = async (id) => {
     if (!confirm("Delete product?")) return;
-
     try {
       await api.delete(`/products/${id}`);
       setProducts(products.filter(p => p._id !== id));
@@ -108,7 +119,7 @@ export default function Products() {
     <div>
       <h2>Products</h2>
 
-      {/* Vendor Select */}
+      {/* Vendor select */}
       <select value={vendorId} onChange={e => setVendorId(e.target.value)}>
         <option value="">-- Select Vendor --</option>
         {vendors.map(v => (
@@ -116,16 +127,26 @@ export default function Products() {
         ))}
       </select>
 
-      {/* Category Select */}
-      <select value={categoryId} onChange={e => setCategoryId(e.target.value)} disabled={!vendorId}>
+      {/* Category select */}
+      <select
+        value={categoryId}
+        onChange={e => setCategoryId(e.target.value)}
+        disabled={!vendorId}
+        style={{ marginLeft: 10 }}
+      >
         <option value="">-- Select Category --</option>
         {categories.map(c => (
           <option key={c._id} value={c._id}>{c.name}</option>
         ))}
       </select>
 
-      {/* Subcategory Select */}
-      <select value={subcategoryId} onChange={e => setSubcategoryId(e.target.value)} disabled={!categoryId}>
+      {/* Subcategory select */}
+      <select
+        value={subcategoryId}
+        onChange={e => setSubcategoryId(e.target.value)}
+        disabled={!categoryId}
+        style={{ marginLeft: 10 }}
+      >
         <option value="">-- Select Subcategory --</option>
         {subcategories.map(s => (
           <option key={s._id} value={s._id}>{s.name}</option>
@@ -134,45 +155,38 @@ export default function Products() {
 
       <br /><br />
 
-      {subcategoryId && (
-        <>
-          {/* Add / Edit Product Form */}
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <input
-              placeholder="Product Name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-            <input
-              type="number"
-              placeholder="Price"
-              value={price}
-              onChange={e => setPrice(e.target.value)}
-              style={{ marginLeft: 10 }}
-            />
-            <button onClick={saveProduct} style={{ marginLeft: 10 }}>
-              {editingId ? "Update" : "Add"} Product
+      {/* Add/Edit Product */}
+      {(vendorId && categoryId && subcategoryId) && (
+        <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
+          <input placeholder="Product name" value={name} onChange={e => setName(e.target.value)} />
+          <input placeholder="Price" type="number" value={price} onChange={e => setPrice(e.target.value)} style={{ marginLeft: 10 }} />
+          <input type="file" onChange={e => setImage(e.target.files[0])} style={{ marginLeft: 10 }} />
+          <button onClick={saveProduct} style={{ marginLeft: 10 }}>
+            {editingId ? "Update" : "Add"} Product
+          </button>
+          {editingId && (
+            <button onClick={() => { setEditingId(null); setName(""); setPrice(""); setImage(null); }} style={{ marginLeft: 10 }}>
+              Cancel
             </button>
-            {editingId && (
-              <button onClick={() => { setEditingId(null); setName(""); setPrice(""); }} style={{ marginLeft: 10 }}>
-                Cancel
-              </button>
-            )}
-          </div>
-
-          {/* Products List */}
-          <div style={{ display: "grid", gap: 10 }}>
-            {products.map(p => (
-              <div key={p._id} style={{ border: "1px solid #ccc", padding: 10 }}>
-                <h4>{p.name}</h4>
-                <p>₹{p.price}</p>
-                <button onClick={() => editProduct(p)}>Edit</button>
-                <button onClick={() => deleteProduct(p._id)} style={{ marginLeft: 10 }}>Delete</button>
-              </div>
-            ))}
-          </div>
-        </>
+          )}
+        </div>
       )}
+
+      {/* Product list */}
+      <div style={{ display: "grid", gap: 10 }}>
+        {products.map(p => (
+          <div key={p._id} style={{ border: "1px solid #ccc", padding: 10 }}>
+            <h4>{p.name}</h4>
+            <p>Price: ${p.price}</p>
+            <p>Vendor: {p.vendor?.name || "-"}</p>
+            <p>Category: {p.category?.name || "-"}</p>
+            <p>Subcategory: {p.subcategory?.name || "-"}</p>
+            {p.image && <img src={p.image} alt={p.name} style={{ width: 100, marginTop: 5 }} />}
+            <button onClick={() => editProduct(p)}>Edit</button>
+            <button onClick={() => deleteProduct(p._id)} style={{ marginLeft: 10 }}>Delete</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
