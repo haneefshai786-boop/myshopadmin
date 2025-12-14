@@ -2,89 +2,150 @@
 import { useEffect, useState } from "react";
 import api from "../api.js";
 
-export default function Subcategories() {
+export default function Categories() {
+  const [vendors, setVendors] = useState([]);
+  const [vendorId, setVendorId] = useState("");
   const [categories, setCategories] = useState([]);
-  const [categoryId, setCategoryId] = useState("");
-  const [subcategories, setSubcategories] = useState([]);
   const [name, setName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [editingName, setEditingName] = useState("");
 
-  // Load categories
+  // Load vendors
   useEffect(() => {
-    api.get("/categories")
-      .then(res => setCategories(res.data))
-      .catch(() => alert("Failed to load categories"));
+    api.get("/vendors")
+      .then(res => setVendors(res.data))
+      .catch(() => alert("Failed to load vendors"));
   }, []);
 
-  // Load subcategories when category changes
+  // Load categories when vendor changes
   useEffect(() => {
-    if (!categoryId) return;
-    api.get(`/subcategories/category/${categoryId}`)
-      .then(res => setSubcategories(res.data))
-      .catch(() => setSubcategories([]));
-  }, [categoryId]);
+    if (!vendorId) {
+      setCategories([]);
+      return;
+    }
 
-  const addSubcategory = async () => {
-    if (!name || !categoryId) return alert("Select category & enter name");
+    api.get(`/categories/vendor/${vendorId}`)
+      .then(res => setCategories(res.data))
+      .catch(() => setCategories([]));
+  }, [vendorId]);
+
+  // Add category
+  const addCategory = async () => {
+    if (!name || !vendorId) {
+      alert("Select vendor & enter category name");
+      return;
+    }
+
     try {
-      await api.post("/subcategories", { name, category: categoryId });
+      await api.post("/categories", {
+        name,
+        vendor: vendorId
+      });
+
       setName("");
-      const res = await api.get(`/subcategories/category/${categoryId}`);
-      setSubcategories(res.data);
+      const res = await api.get(`/categories/vendor/${vendorId}`);
+      setCategories(res.data);
     } catch {
-      alert("Failed to add subcategory");
+      alert("Failed to add category");
     }
   };
 
-  const updateSubcategory = async (id) => {
-    const newName = prompt("Enter new name");
-    if (!newName) return;
-    try {
-      const res = await api.put(`/subcategories/${id}`, { name: newName });
-      setSubcategories(subcategories.map(s => s._id === id ? res.data : s));
-    } catch {
-      alert("Update failed");
-    }
-  };
+  // Delete category
+  const deleteCategory = async (id) => {
+    if (!confirm("Delete category?")) return;
 
-  const deleteSubcategory = async (id) => {
-    if (!confirm("Delete subcategory?")) return;
     try {
-      await api.delete(`/subcategories/${id}`);
-      setSubcategories(subcategories.filter(s => s._id !== id));
+      await api.delete(`/categories/${id}`);
+      setCategories(categories.filter(c => c._id !== id));
     } catch {
       alert("Delete failed");
     }
   };
 
+  // Start editing
+  const startEdit = (category) => {
+    setEditingCategoryId(category._id);
+    setEditingName(category.name);
+  };
+
+  // Save edit
+  const saveEdit = async () => {
+    if (!editingName) return;
+
+    try {
+      await api.put(`/categories/${editingCategoryId}`, { name: editingName });
+      const res = await api.get(`/categories/vendor/${vendorId}`);
+      setCategories(res.data);
+      setEditingCategoryId(null);
+      setEditingName("");
+    } catch {
+      alert("Update failed");
+    }
+  };
+
+  // Cancel edit
+  const cancelEdit = () => {
+    setEditingCategoryId(null);
+    setEditingName("");
+  };
+
   return (
     <div>
-      <h2>Subcategories</h2>
+      <h2>Categories</h2>
 
-      <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>
-        <option value="">-- Select Category --</option>
-        {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+      {/* Select Vendor */}
+      <select
+        value={vendorId}
+        onChange={(e) => setVendorId(e.target.value)}
+      >
+        <option value="">-- Select Vendor --</option>
+        {vendors.map(v => (
+          <option key={v._id} value={v._id}>{v.name}</option>
+        ))}
       </select>
 
-      {categoryId && (
-        <div style={{ marginTop: 20 }}>
+      <br /><br />
+
+      {/* Add Category */}
+      {vendorId && !editingCategoryId && (
+        <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
           <input
-            placeholder="Subcategory name"
+            placeholder="Category name"
             value={name}
-            onChange={e => setName(e.target.value)}
+            onChange={(e) => setName(e.target.value)}
           />
-          <button onClick={addSubcategory}>Add Subcategory</button>
+          <button onClick={addCategory} style={{ marginLeft: 10 }}>
+            Add Category
+          </button>
         </div>
       )}
 
-      <div style={{ marginTop: 20 }}>
-        {subcategories.map(s => (
-          <div key={s._id} style={{ border: "1px solid #ccc", padding: 10, marginBottom: 10 }}>
-            <span>{s.name}</span>
-            <button style={{ marginLeft: 10 }} onClick={() => updateSubcategory(s._id)}>Edit</button>
-            <button style={{ marginLeft: 10 }} onClick={() => deleteSubcategory(s._id)}>Delete</button>
+      {/* Category List */}
+      <div style={{ display: "grid", gap: 10 }}>
+        {categories.map(c => (
+          <div
+            key={c._id}
+            style={{ border: "1px solid #ccc", padding: 10, borderRadius: 6 }}
+          >
+            {editingCategoryId === c._id ? (
+              <>
+                <input
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                />
+                <button onClick={saveEdit} style={{ marginLeft: 10 }}>Save</button>
+                <button onClick={cancelEdit} style={{ marginLeft: 5 }}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <h4>{c.name}</h4>
+                <button onClick={() => startEdit(c)}>Edit</button>
+                <button onClick={() => deleteCategory(c._id)} style={{ marginLeft: 5 }}>Delete</button>
+              </>
+            )}
           </div>
         ))}
       </div>
     </div>
   );
-            }
+}
