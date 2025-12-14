@@ -1,30 +1,31 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import api from "../api";
 
 export default function Categories() {
+  const { vendorId } = useParams(); // get vendorId from URL
   const [categories, setCategories] = useState([]);
   const [name, setName] = useState("");
 
   const loadCategories = async () => {
-    const { data } = await api.get("/categories");
+    if (!vendorId) return;
+    const { data } = await api.get(`/categories?vendor=${vendorId}`);
     setCategories(data);
   };
 
   useEffect(() => {
     loadCategories();
-  }, []);
+  }, [vendorId]);
 
   const addCategory = async () => {
     if (!name) return;
-    await api.post("/categories", { name });
+    await api.post("/categories", { name, vendor: vendorId });
     setName("");
     loadCategories();
   };
 
   const updateCategory = async (id) => {
-    await api.put(`/categories/${id}`, {
-      name: "Updated Category"
-    });
+    await api.put(`/categories/${id}`, { name: "Updated Category" });
     loadCategories();
   };
 
@@ -44,37 +45,37 @@ export default function Categories() {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <button
-          onClick={addCategory}
-          className="bg-blue-600 text-white px-4"
-        >
+        <button onClick={addCategory} className="bg-blue-600 text-white px-4">
           Add
         </button>
       </div>
 
-      {categories.map((c) => (
-        <div
-          key={c._id}
-          className="bg-white p-3 mb-2 flex justify-between"
-        >
-          <span>{c.name}</span>
-
-          <div className="space-x-3">
-            <button
-              onClick={() => updateCategory(c._id)}
-              className="text-blue-600"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => deleteCategory(c._id)}
-              className="text-red-600"
-            >
-              Delete
-            </button>
+      {categories.length === 0 ? (
+        <p>No categories found for this vendor.</p>
+      ) : (
+        categories.map((c) => (
+          <div
+            key={c._id}
+            className="bg-white p-3 mb-2 flex justify-between"
+          >
+            <span>{c.name}</span>
+            <div className="space-x-3">
+              <button
+                onClick={() => updateCategory(c._id)}
+                className="text-blue-600"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => deleteCategory(c._id)}
+                className="text-red-600"
+              >
+                Delete
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 }
